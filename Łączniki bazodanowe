@@ -1,108 +1,63 @@
-1.Będąc  w bazie 11a  stwórz synonimy prywatne nazwaSiedziba i nazwaFilia dla tabel z bazy baza 11a (siedziba)  i tabel z bazy baza 11b (filia) odpowiednio, np. wykladowcySiedziba i wykladowcyFilia dla wszystkich tabel za wyjątkiem tabeli umowy. Przy tworzeniu synonimu odwołującego się do zdalnej lokalizacji wykorzystaj stworzony łacznik bazodanowy. 
+-- 1. Utworzenie łącznika bazodanowego do filii (Uruchom w bazie 11a)
+CREATE DATABASE LINK dblinkFilia 
+CONNECT TO RBDN2_ST13 IDENTIFIED BY "start123"
+USING 'baza11b';
 
+-- 2. Wyświetlenie tabeli z filii za pomocą łącznika
+SELECT * FROM kursanci@dblinkFilia;
 
-CREATE SYNONYM wykladowcySiedziba FOR wykladowcy;
+-- 3. Tworzenie synonimów lokalnych (Baza 11a)
 CREATE SYNONYM kursanciSiedziba FOR kursanci;
+CREATE SYNONYM wykladowcySiedziba FOR wykladowcy;
 CREATE SYNONYM rodzajeSiedziba FOR rodzaje;
 CREATE SYNONYM kursySiedziba FOR kursy;
 
-CREATE SYNONYM wykladowcyFilia FOR wykladowcy@dblinkFilia;
+-- 4. Tworzenie synonimów zdalnych poprzez łącznik (Baza 11a)
 CREATE SYNONYM kursanciFilia FOR kursanci@dblinkFilia;
+CREATE SYNONYM wykladowcyFilia FOR wykladowcy@dblinkFilia;
 CREATE SYNONYM rodzajeFilia FOR rodzaje@dblinkFilia;
 CREATE SYNONYM kursyFilia FOR kursy@dblinkFilia;
 
-2.Będąc  w bazie 11a stwórz widoki kursanciAll i wykładowcyAll  wyswietlajacy imiona I nazwiska wszystkich kursantów I wykladowcow  z obu baz.  
-
-(wykorzystaj select z odwołaniem do synonimów i konstrukcji UNION)  
-
-CREATE OR REPLACE VIEW kursanciAll AS
+-- 5. Tworzenie widoków łączących uczestników i wykładowców (Baza 11a)
+CREATE OR REPLACE VIEW kursanciAll AS 
 SELECT imie, nazwisko FROM kursanciSiedziba
-UNION
+UNION 
 SELECT imie, nazwisko FROM kursanciFilia;
 
-CREATE OR REPLACE VIEW wykladowcyAll AS
+CREATE OR REPLACE VIEW wykladowcyAll AS 
 SELECT imie, nazwisko FROM wykladowcySiedziba
-UNION
+UNION 
 SELECT imie, nazwisko FROM wykladowcyFilia;
 
-3.Bedąc w bazie 11a stwórz widok kursyAll  który zawiera nazwy z informacją o prowadzący i ilości uczestników dla wszystkich prowadzonych kursów z obu baz.    
-
-
-CREATE OR REPLACE VIEW kursyAll AS
-SELECT 
-    'Siedziba' AS oddzial,
-    r.nazwa AS nazwa_kursu, 
-    w.imie || ' ' || w.nazwisko AS prowadzacy,
-    (SELECT COUNT(*) FROM umowy u WHERE u.kurs_id = k.kurs_id) AS ilosc_uczestnikow
+-- 6. Tworzenie widoku kursyAll (ilość uczestników na podstawie umów w bazie 11a)
+CREATE OR REPLACE VIEW kursyAll AS 
+SELECT r.nazwa AS nazwa_kursu, w.imie || ' ' || w.nazwisko AS prowadzacy, COUNT(u.umowa_id) AS ilosc_uczestnikow, 
+       r.cena, r.godz, w.stawka, 'SIEDZIBA' as lokalizacja
 FROM kursySiedziba k
 JOIN rodzajeSiedziba r ON k.rodzaj_id = r.rodzaj_id
 JOIN wykladowcySiedziba w ON k.wykladowca_id = w.wykladowca_id
+LEFT JOIN umowy u ON k.kurs_id = u.kurs_id
+GROUP BY r.nazwa, w.imie, w.nazwisko, r.cena, r.godz, w.stawka
 UNION ALL
-SELECT 
-    'Filia' AS oddzial,
-    r.nazwa AS nazwa_kursu, 
-    w.imie || ' ' || w.nazwisko AS prowadzacy,
-    (SELECT COUNT(*) FROM umowy u WHERE u.kurs_id = k.kurs_id) AS ilosc_uczestnikow
+SELECT r.nazwa AS nazwa_kursu, w.imie || ' ' || w.nazwisko AS prowadzacy, COUNT(u.umowa_id) AS ilosc_uczestnikow, 
+       r.cena, r.godz, w.stawka, 'FILIA' as lokalizacja
 FROM kursyFilia k
 JOIN rodzajeFilia r ON k.rodzaj_id = r.rodzaj_id
-JOIN wykladowcyFilia w ON k.wykladowca_id = w.wykladowca_id;
+JOIN wykladowcyFilia w ON k.wykladowca_id = w.wykladowca_id
+LEFT JOIN umowy u ON k.kurs_id = u.kurs_id
+GROUP BY r.nazwa, w.imie, w.nazwisko, r.cena, r.godz, w.stawka;
 
+-- 7. Wyliczenia na widoku kursyAll
+-- Przychód ze wszystkich kursów
+SELECT SUM(cena * ilosc_uczestnikow) AS calkowity_przychod FROM kursyAll;
 
-4.Będąc w bazie 11a napisz select który obliczy przychód ze wszystkich aktualnie prowadzonych kursów zarówno z siedziby jak i filii. 
+-- Koszty (stawka * liczba godzin) ze wszystkich kursów, na które zapisani są uczestnicy
+SELECT SUM(stawka * godz) AS calkowite_koszty FROM kursyAll WHERE ilosc_uczestnikow > 0;
 
-SELECT SUM(przychod_z_kursu) AS calkowity_przychod
-FROM (
-    SELECT r.cena * (SELECT COUNT(*) FROM umowy u WHERE u.kurs_id = k.kurs_id) AS przychod_z_kursu
-    FROM kursySiedziba k JOIN rodzajeSiedziba r ON k.rodzaj_id = r.rodzaj_id
-    UNION ALL
-    SELECT r.cena * (SELECT COUNT(*) FROM umowy u WHERE u.kurs_id = k.kurs_id) AS przychod_z_kursu
-    FROM kursyFilia k JOIN rodzajeFilia r ON k.rodzaj_id = r.rodzaj_id
-) podsumowanie_przychodu;
+-- Zysk/Strata dla każdego kursu
+SELECT nazwa_kursu, prowadzacy, lokalizacja, 
+       (cena * ilosc_uczestnikow) - (stawka * godz) AS zysk_strata 
+FROM kursyAll;
 
-5.Będąc w bazie 11a napisz select który obliczy koszty (kwote należną wykładowcom)  ze wszystkich prowadzonych aktualnie kursów zarówno z siedziby jak i filii. 
-
-SELECT SUM(koszt_kursu) AS calkowite_koszty_wykladowcow
-FROM (
-    SELECT w.stawka * r.godz AS koszt_kursu
-    FROM kursySiedziba k
-    JOIN wykladowcySiedziba w ON k.wykladowca_id = w.wykladowca_id
-    JOIN rodzajeSiedziba r ON k.rodzaj_id = r.rodzaj_id
-    UNION ALL
-    SELECT w.stawka * r.godz AS koszt_kursu
-    FROM kursyFilia k
-    JOIN wykladowcyFilia w ON k.wykladowca_id = w.wykladowca_id
-    JOIN rodzajeFilia r ON k.rodzaj_id = r.rodzaj_id
-) podsumowanie_kosztow;
-
-6.Będąc w bazie 11a napisz select który wyświetli zysk (strate) dla każdego prowadzonego kursu 
-
-SELECT 
-    'Siedziba' AS oddzial,
-    r.nazwa AS nazwa_kursu,
-    (r.cena * (SELECT COUNT(*) FROM umowy u WHERE u.kurs_id = k.kurs_id)) - (w.stawka * r.godz) AS zysk_strata
-FROM kursySiedziba k
-JOIN rodzajeSiedziba r ON k.rodzaj_id = r.rodzaj_id
-JOIN wykladowcySiedziba w ON k.wykladowca_id = w.wykladowca_id
-UNION ALL
-SELECT 
-    'Filia' AS oddzial,
-    r.nazwa AS nazwa_kursu,
-    (r.cena * (SELECT COUNT(*) FROM umowy u WHERE u.kurs_id = k.kurs_id)) - (w.stawka * r.godz) AS zysk_strata
-FROM kursyFilia k
-JOIN rodzajeFilia r ON k.rodzaj_id = r.rodzaj_id
-JOIN wykladowcyFilia w ON k.wykladowca_id = w.wykladowca_id;
-
-7.Będąc w bazie 11a napisz select który wyświetli łaczny zysk (strate) dla wszystkich aktualnych kursów ogółem 
-
-SELECT SUM(zysk_strata) AS laczny_zysk_strata_ogolem
-FROM (
-    SELECT (r.cena * (SELECT COUNT(*) FROM umowy u WHERE u.kurs_id = k.kurs_id)) - (w.stawka * r.godz) AS zysk_strata
-    FROM kursySiedziba k
-    JOIN rodzajeSiedziba r ON k.rodzaj_id = r.rodzaj_id
-    JOIN wykladowcySiedziba w ON k.wykladowca_id = w.wykladowca_id
-    UNION ALL
-    SELECT (r.cena * (SELECT COUNT(*) FROM umowy u WHERE u.kurs_id = k.kurs_id)) - (w.stawka * r.godz) AS zysk_strata
-    FROM kursyFilia k
-    JOIN rodzajeFilia r ON k.rodzaj_id = r.rodzaj_id
-    JOIN wykladowcyFilia w ON k.wykladowca_id = w.wykladowca_id
-) bilans;
+-- Łączny zysk dla wszystkich kursów ogółem
+SELECT SUM((cena * ilosc_uczestnikow) - (stawka * godz)) AS laczny_zysk FROM kursyAll;
