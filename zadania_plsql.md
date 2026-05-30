@@ -24,7 +24,6 @@ BEGIN
     SELECT COUNT(*) INTO v_kursanci FROM kursanci;
     SELECT COUNT(*) INTO v_kursy FROM kursy;
     SELECT COUNT(*) INTO v_wykladowcy FROM wykladowcy;
-
     DBMS_OUTPUT.PUT_LINE('Liczba kursantów: ' || v_kursanci);
     DBMS_OUTPUT.PUT_LINE('Liczba kursów: ' || v_kursy);
     DBMS_OUTPUT.PUT_LINE('Liczba wykładowców: ' || v_wykladowcy);
@@ -43,7 +42,6 @@ BEGIN
     JOIN kursy k ON u.kurs_id = k.kurs_id
     JOIN rodzaje r ON k.rodzaj_id = r.rodzaj_id
     WHERE u.miasto = 'BYDGOSZCZ';
-
     DBMS_OUTPUT.PUT_LINE('Łączna wartość umów dla BYDGOSZCZY: ' || v_laczna_wartosc || ' zł');
 END;
 /
@@ -54,8 +52,8 @@ DECLARE
     v_miasto VARCHAR2(50) := 'BYDGOSZCZ';
     v_liczba_umow NUMBER;
 BEGIN
-    SELECT COUNT(*) INTO v_liczba_umow FROM umowy WHERE miasto = v_miasto;
- 
+
+SELECT COUNT(*) INTO v_liczba_umow FROM umowy WHERE miasto = v_miasto;
     IF v_liczba_umow = 0 THEN
         DBMS_OUTPUT.PUT_LINE('Brak umów dla miasta');
     ELSIF v_liczba_umow < 50 THEN
@@ -65,7 +63,9 @@ BEGIN
     ELSE
         DBMS_OUTPUT.PUT_LINE('Duża liczba umów');
     END IF;
+
 END;
+
 /
  zad4. Lista kursów w siedzibie
 BEGIN
@@ -96,7 +96,6 @@ BEGIN
     JOIN kursy k ON u.kurs_id = k.kurs_id
     JOIN rodzaje r ON k.rodzaj_id = r.rodzaj_id
     WHERE u.miasto = p_miasto;
-
     DBMS_OUTPUT.PUT_LINE('Raport dla miasta: ' || p_miasto);
     DBMS_OUTPUT.PUT_LINE('Liczba umów: ' || v_liczba);
     DBMS_OUTPUT.PUT_LINE('Łączna wartość umów: ' || v_wartosc || ' zł');
@@ -115,7 +114,6 @@ BEGIN
     FROM kursy k
     JOIN rodzaje r ON k.rodzaj_id = r.rodzaj_id
     WHERE k.kurs_id = p_kurs_id;
- 
     RETURN v_cena;
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
@@ -133,7 +131,6 @@ BEGIN
     SELECT imie, nazwisko INTO v_imie, v_nazwisko
     FROM kursanci
     WHERE kursant_id = p_kursant_id;
- 
     DBMS_OUTPUT.PUT_LINE('Kursant: ' || v_imie || ' ' || v_nazwisko);
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
@@ -189,23 +186,19 @@ zad 10. Raport całej uczelni
     -- Bydgoszcz
     v_b_liczba NUMBER := 0; v_b_suma NUMBER := 0;
     v_b_max_kurs VARCHAR2(100); v_b_pop_kurs VARCHAR2(100);
-
     -- Szczecin
     v_s_liczba NUMBER := 0; v_s_suma NUMBER := 0;
     v_s_max_kurs VARCHAR2(100); v_s_pop_kurs VARCHAR2(100);
 BEGIN
     DBMS_OUTPUT.PUT_LINE('RAPORT UCZELNI');
     DBMS_OUTPUT.PUT_LINE('--------------------------------');
-
     -- ===== BYDGOSZCZ =====
     SELECT COUNT(*), NVL(SUM(r.cena), 0) INTO v_b_liczba, v_b_suma
     FROM umowy u JOIN kursy k ON u.kurs_id = k.kurs_id JOIN rodzaje r ON k.rodzaj_id = r.rodzaj_id
     WHERE u.miasto = 'BYDGOSZCZ';
-
     SELECT nazwa INTO v_b_max_kurs FROM (
         SELECT r.nazwa FROM rodzaje r ORDER BY r.cena DESC
     ) WHERE ROWNUM = 1;
-
     BEGIN
         SELECT nazwa INTO v_b_pop_kurs FROM (
             SELECT r.nazwa, COUNT(*) as ilosc FROM umowy u
@@ -213,23 +206,19 @@ BEGIN
             WHERE u.miasto = 'BYDGOSZCZ' GROUP BY r.nazwa ORDER BY ilosc DESC
         ) WHERE ROWNUM = 1;
     EXCEPTION WHEN NO_DATA_FOUND THEN v_b_pop_kurs := 'Brak danych'; END;
-
     DBMS_OUTPUT.PUT_LINE('Miasto: BYDGOSZCZ');
     DBMS_OUTPUT.PUT_LINE('Liczba umów: ' || v_b_liczba);
     DBMS_OUTPUT.PUT_LINE('Łączna wartość umów: ' || v_b_suma || ' zł');
     DBMS_OUTPUT.PUT_LINE('Najdroższy kurs: ' || v_b_max_kurs);
     DBMS_OUTPUT.PUT_LINE('Najpopularniejszy kurs: ' || v_b_pop_kurs);
     DBMS_OUTPUT.PUT_LINE('');
-
     -- ===== SZCZECIN (korzysta z synonimów do bazy filii) =====
     SELECT COUNT(*), NVL(SUM(rod.cena), 0) INTO v_s_liczba, v_s_suma
     FROM umowy u JOIN kursyFilia kf ON u.kurs_id = kf.kurs_id JOIN rodzajeFilia rod ON kf.rodzaj_id = rod.rodzaj_id
     WHERE u.miasto = 'SZCZECIN';
-
     SELECT nazwa INTO v_s_max_kurs FROM (
         SELECT nazwa FROM rodzajeFilia ORDER BY cena DESC
     ) WHERE ROWNUM = 1;
-
     BEGIN
         SELECT nazwa INTO v_s_pop_kurs FROM (
             SELECT rod.nazwa, COUNT(*) as ilosc FROM umowy u
@@ -237,14 +226,12 @@ BEGIN
             WHERE u.miasto = 'SZCZECIN' GROUP BY rod.nazwa ORDER BY ilosc DESC
         ) WHERE ROWNUM = 1;
     EXCEPTION WHEN NO_DATA_FOUND THEN v_s_pop_kurs := 'Brak danych'; END;
-
     DBMS_OUTPUT.PUT_LINE('Miasto: SZCZECIN');
     DBMS_OUTPUT.PUT_LINE('Liczba umów: ' || v_s_liczba);
     DBMS_OUTPUT.PUT_LINE('Łączna wartość umów: ' || v_s_suma || ' zł');
     DBMS_OUTPUT.PUT_LINE('Najdroższy kurs: ' || v_s_max_kurs);
     DBMS_OUTPUT.PUT_LINE('Najpopularniejszy kurs: ' || v_s_pop_kurs);
     DBMS_OUTPUT.PUT_LINE('--------------------------------');
-
     -- ===== PODSUMOWANIE =====
     DBMS_OUTPUT.PUT_LINE('PODSUMOWANIE');
     DBMS_OUTPUT.PUT_LINE('Liczba wszystkich umów: ' || (v_b_liczba + v_s_liczba));
